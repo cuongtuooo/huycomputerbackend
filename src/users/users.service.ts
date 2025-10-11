@@ -42,7 +42,7 @@ export class UsersService {
   // }
 
   async create(createUserDto: CreateUserDto, user:IUser) {
-    const { email,  name, password} = createUserDto
+    const { email,  name, password, phone} = createUserDto
 
     // logic checkmail
     const isExist = await this.userModel.findOne({ email });
@@ -52,12 +52,13 @@ export class UsersService {
     }
 
     const hassPassword = this.getHashPassword(password);
-
+    const NORMAL_USER_ROLE_ID = "6883003aac8a30a7ede53073";
     let newUser = await this.userModel.create({
       name,
       email,
       password: hassPassword,
-      role:"NORMAL_USER",
+      phone,
+      role: new mongoose.Types.ObjectId(NORMAL_USER_ROLE_ID),
       createdBy: {
         _id: user._id,
         email: user.email

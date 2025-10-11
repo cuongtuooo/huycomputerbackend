@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, Query } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Query, Patch } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { ResponseMessage, User } from 'src/decorator/customize';
@@ -28,5 +28,26 @@ export class OrderController {
   @ResponseMessage('Get order detail')
   findOne(@Param('id') id: string) {
     return this.orderService.findOne(id);
+  }
+
+  // Client hủy đơn (chỉ khi chưa giao)
+  @Patch(':id/cancel')
+  @ResponseMessage('Cancel my order')
+  cancel(@Param('id') id: string, @User() user: IUser) {
+    return this.orderService.cancelMyOrder(id, user);
+  }
+
+  // Client xác nhận đã nhận (khi admin đã DELIVERED)
+  @Patch(':id/confirm-received')
+  @ResponseMessage('Confirm order received')
+  confirmReceived(@Param('id') id: string, @User() user: IUser) {
+    return this.orderService.confirmReceived(id, user);
+  }
+
+  // (Admin) cập nhật sang SHIPPING / DELIVERED (nếu chưa có endpoint)
+  @Patch(':id/admin-status')
+  @ResponseMessage('Admin update order status')
+  adminStatus(@Param('id') id: string, @Body('status') status: 'SHIPPING' | 'DELIVERED', @User() admin: IUser) {
+    return this.orderService.adminUpdateStatus(id, status, admin);
   }
 }

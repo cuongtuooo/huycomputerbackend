@@ -24,11 +24,13 @@ export class CreateUserDto {
     })
     password: string;
 
-    @IsNotEmpty({
-        message: "role không được để trống"
-    })
-    @IsMongoId({ message:"role có định dạng là mongoid"})
-    role: mongoose.Schema.Types.ObjectId;   
+    phone: string;
+
+    // @IsNotEmpty({
+    //     message: "role không được để trống"
+    // })
+    // @IsMongoId({ message:"role có định dạng là mongoid"})
+    // role: mongoose.Schema.Types.ObjectId;   
 }
 
 export class RegisterUserDto {

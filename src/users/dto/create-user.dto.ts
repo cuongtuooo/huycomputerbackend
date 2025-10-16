@@ -52,4 +52,5 @@ export class RegisterUserDto {
         message: "name không được để trống"
     })
     name: string;
+
 }

@@ -1,48 +1,40 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Query } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
-import { CreateDashboardDto } from './dto/create-dashboard.dto';
-import { UpdateDashboardDto } from './dto/update-dashboard.dto';
 import { ResponseMessage } from 'src/decorator/customize';
 
 @Controller('dashboard')
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) {}
+  constructor(private readonly dashboardService: DashboardService) { }
 
+  /**
+   * GET /api/v1/dashboard
+   * Trả về thống kê tổng quan:
+   * - Tổng đơn hàng
+   * - Tổng sản phẩm
+   * - Doanh thu
+   * - Danh mục
+   * - Đơn hàng gần đây
+   * - Sản phẩm sắp hết hàng
+   */
+  @Get()
+  @ResponseMessage('Lấy thống kê tổng quan Dashboard')
+  async getStats(
+    @Query('lowStock') lowStock?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.dashboardService.findAll({
+      lowStock,
+      limit,
+    } as any);
+  }
 
+  /**
+   * POST /api/v1/dashboard
+   * Tạo snapshot thống kê mới và lưu vào DB
+   */
   @Post()
   @ResponseMessage('Tạo thống kê mới')
-  async createStats() {
+  async createSnapshot() {
     return this.dashboardService.createDailyStats();
-  }
-
-  @Get()
-  @ResponseMessage('Lấy danh sách thống kê')
-  async getStats() {
-    return this.dashboardService.findAll();
-  }
-
-  @Post()
-  create(@Body() createDashboardDto: CreateDashboardDto) {
-    return this.dashboardService.create(createDashboardDto);
-  }
-
-  @Get()
-  findAll() {
-    return this.dashboardService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.dashboardService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateDashboardDto: UpdateDashboardDto) {
-    return this.dashboardService.update(+id, updateDashboardDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.dashboardService.remove(+id);
   }
 }

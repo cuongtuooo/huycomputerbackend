@@ -1,12 +1,11 @@
-// src/order/schemas/order.schema.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import mongoose, { HydratedDocument, Types } from 'mongoose'; // 👈 import thêm Types
+import mongoose, { HydratedDocument, Types } from 'mongoose';
 import { Product } from 'src/products/schemas/products.schemas';
 
 export type OrderDocument = HydratedDocument<Order>;
 export type OrderStatus = 'PENDING' | 'SHIPPING' | 'DELIVERED' | 'RECEIVED' | 'CANCELED';
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true }) // tự sinh createdAt + updatedAt
 export class Order {
     @Prop() name: string;
     @Prop() address: string;
@@ -25,14 +24,16 @@ export class Order {
             },
         ],
     })
-    detail: { _id: Types.ObjectId; quantity: number; productName: string }[]; // 👈 dùng Types.ObjectId
+    detail: { _id: Types.ObjectId; quantity: number; productName: string }[];
 
     @Prop() totalPrice: number;
 
-    @Prop({ enum: ['PENDING', 'SHIPPING', 'DELIVERED', 'RECEIVED', 'CANCELED'], default: 'PENDING' })
+    @Prop({
+        enum: ['PENDING', 'SHIPPING', 'DELIVERED', 'RECEIVED', 'CANCELED'],
+        default: 'PENDING',
+    })
     status: OrderStatus;
 
-    // 👇 Định nghĩa subdocument rõ ràng + kiểu TS dùng Types.ObjectId
     @Prop({
         type: {
             _id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -57,11 +58,12 @@ export class Order {
     })
     deletedBy: { _id: Types.ObjectId; email: string };
 
-    @Prop() createdAt: Date;
-    @Prop() updatedAt: Date;
-
     @Prop({ default: false }) isDeleted: boolean;
     @Prop() deletedAt: Date;
+
+    /** ✅ Bổ sung để TypeScript biết có 2 field này */
+    @Prop() createdAt: Date;
+    @Prop() updatedAt: Date;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

@@ -112,4 +112,31 @@ export class OrderService {
     return order;
   }
 
+  // Khách yêu cầu hoàn hàng
+  async requestReturn(id: string, user: any) {
+    const order = await this.mustOwnOrder(id, user);
+    if (order.status !== 'DELIVERED') {
+      throw new BadRequestException('Chỉ có thể hoàn hàng sau khi đơn đã giao.');
+    }
+    order.status = 'RETURNED';
+    order.updatedBy = { _id: new Types.ObjectId(user._id), email: user.email };
+    await order.save();
+    return order;
+  }
+
+  // Admin xác nhận đã nhận hàng hoàn
+  async adminConfirmReturnReceived(id: string, admin: any) {
+    if (!isValidObjectId(id)) throw new BadRequestException('Invalid order id');
+    const order = await this.orderModel.findById(id);
+    if (!order) throw new BadRequestException('Order not found');
+    if (order.status !== 'RETURNED') {
+      throw new BadRequestException('Chỉ có thể xác nhận khi đơn ở trạng thái hoàn hàng');
+    }
+    order.status = 'RETURN_RECEIVED';
+    order.updatedBy = { _id: new Types.ObjectId(admin._id), email: admin.email };
+    await order.save();
+    return order;
+  }
+
+
 }

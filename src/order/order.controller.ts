@@ -50,4 +50,18 @@ export class OrderController {
   adminStatus(@Param('id') id: string, @Body('status') status: 'SHIPPING' | 'DELIVERED', @User() admin: IUser) {
     return this.orderService.adminUpdateStatus(id, status, admin);
   }
+
+  // Client yêu cầu hoàn hàng
+  @Patch(':id/request-return')
+  @ResponseMessage('Yêu cầu hoàn hàng')
+  requestReturn(@Param('id') id: string, @User() user: IUser) {
+    return this.orderService.requestReturn(id, user);
+  }
+
+  // Admin xác nhận đã nhận hàng hoàn
+  @Patch(':id/admin-return-received')
+  @ResponseMessage('Admin xác nhận đã nhận hàng hoàn')
+  adminReturnReceived(@Param('id') id: string, @User() admin: IUser) {
+    return this.orderService.adminConfirmReturnReceived(id, admin);
+  }
 }

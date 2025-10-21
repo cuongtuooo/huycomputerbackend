@@ -3,7 +3,15 @@ import mongoose, { HydratedDocument, Types } from 'mongoose';
 import { Product } from 'src/products/schemas/products.schemas';
 
 export type OrderDocument = HydratedDocument<Order>;
-export type OrderStatus = 'PENDING' | 'SHIPPING' | 'DELIVERED' | 'RECEIVED' | 'CANCELED';
+export type OrderStatus =
+    | 'PENDING'
+    | 'SHIPPING'
+    | 'DELIVERED'
+    | 'RECEIVED'
+    | 'CANCELED'
+    | 'RETURNED'
+    | 'RETURN_RECEIVED';
+
 
 @Schema({ timestamps: true }) // tự sinh createdAt + updatedAt
 export class Order {
@@ -29,7 +37,15 @@ export class Order {
     @Prop() totalPrice: number;
 
     @Prop({
-        enum: ['PENDING', 'SHIPPING', 'DELIVERED', 'RECEIVED', 'CANCELED'],
+        enum: [
+            'PENDING',
+            'SHIPPING',
+            'DELIVERED',
+            'RECEIVED',
+            'CANCELED',
+            'RETURNED',          // khách yêu cầu hoàn hàng
+            'RETURN_RECEIVED',   // admin đã nhận hàng hoàn
+        ],
         default: 'PENDING',
     })
     status: OrderStatus;

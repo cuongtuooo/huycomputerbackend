@@ -138,5 +138,30 @@ export class OrderService {
     return order;
   }
 
+  // 🟡 Admin CHẤP NHẬN yêu cầu hoàn hàng
+  async adminApproveReturn(id: string, admin: any) {
+    const order = await this.orderModel.findById(id);
+    if (!order) throw new BadRequestException('Order not found');
+    if (order.status !== 'RETURN_REQUESTED') {
+      throw new BadRequestException('Chỉ chấp nhận khi đơn ở trạng thái yêu cầu hoàn hàng');
+    }
+    order.status = 'RETURNED';
+    order.updatedBy = { _id: new Types.ObjectId(admin._id), email: admin.email };
+    await order.save();
+    return order;
+  }
+
+  // 🔴 Admin TỪ CHỐI yêu cầu hoàn hàng
+  async adminRejectReturn(id: string, admin: any) {
+    const order = await this.orderModel.findById(id);
+    if (!order) throw new BadRequestException('Order not found');
+    if (order.status !== 'RETURN_REQUESTED') {
+      throw new BadRequestException('Chỉ từ chối khi đơn ở trạng thái yêu cầu hoàn hàng');
+    }
+    order.status = 'RETURN_REJECTED';
+    order.updatedBy = { _id: new Types.ObjectId(admin._id), email: admin.email };
+    await order.save();
+    return order;
+  }
 
 }

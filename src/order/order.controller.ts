@@ -64,4 +64,20 @@ export class OrderController {
   adminReturnReceived(@Param('id') id: string, @User() admin: IUser) {
     return this.orderService.adminConfirmReturnReceived(id, admin);
   }
+
+  // Admin chấp nhận yêu cầu hoàn hàng
+  @Patch(':id/admin-approve-return')
+  @ResponseMessage('Admin chấp nhận yêu cầu hoàn hàng')
+  adminApproveReturn(@Param('id') id: string, @User() admin: IUser) {
+    return this.orderService.adminApproveReturn(id, admin);
+  }
+
+  // Admin từ chối yêu cầu hoàn hàng
+  @Patch(':id/admin-reject-return')
+  @ResponseMessage('Admin từ chối yêu cầu hoàn hàng')
+  adminRejectReturn(@Param('id') id: string, @User() admin: IUser) {
+    return this.orderService.adminRejectReturn(id, admin);
+  }
+
 }
+

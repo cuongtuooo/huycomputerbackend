@@ -9,11 +9,13 @@ export type OrderStatus =
     | 'DELIVERED'
     | 'RECEIVED'
     | 'CANCELED'
-    | 'RETURNED'
-    | 'RETURN_RECEIVED';
+    | 'RETURN_REQUESTED'  // 👈 thêm: Khách yêu cầu hoàn hàng
+    | 'RETURNED'          // Admin đã chấp nhận hoàn hàng
+    | 'RETURN_RECEIVED'   // Admin xác nhận đã nhận hàng hoàn
+    | 'RETURN_REJECTED';  // 👈 thêm: Admin từ chối hoàn hàng
 
 
-@Schema({ timestamps: true }) // tự sinh createdAt + updatedAt
+@Schema({ timestamps: true })
 export class Order {
     @Prop() name: string;
     @Prop() address: string;
@@ -43,8 +45,10 @@ export class Order {
             'DELIVERED',
             'RECEIVED',
             'CANCELED',
-            'RETURNED',          // khách yêu cầu hoàn hàng
-            'RETURN_RECEIVED',   // admin đã nhận hàng hoàn
+            'RETURN_REQUESTED', // ✅ khách yêu cầu hoàn hàng
+            'RETURNED',         // ✅ admin chấp nhận hoàn hàng
+            'RETURN_RECEIVED',  // ✅ admin xác nhận đã nhận hàng hoàn
+            'RETURN_REJECTED',  // ✅ admin từ chối hoàn hàng
         ],
         default: 'PENDING',
     })
@@ -77,7 +81,6 @@ export class Order {
     @Prop({ default: false }) isDeleted: boolean;
     @Prop() deletedAt: Date;
 
-    /** ✅ Bổ sung để TypeScript biết có 2 field này */
     @Prop() createdAt: Date;
     @Prop() updatedAt: Date;
 }

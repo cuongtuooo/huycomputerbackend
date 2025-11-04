@@ -18,11 +18,7 @@ export class ProductController {
   @Get()
   @Public()
   @ResponseMessage('Fetch list of Products')
-  findAll(
-    @Query('current') currentPage: string,
-    @Query('pageSize') limit: string,
-    @Query() qs: any
-  ) {
+  findAll(@Query('current') currentPage: string, @Query('pageSize') limit: string, @Query() qs: any) {
     return this.productService.findAll(+currentPage, +limit, qs);
   }
 
@@ -35,11 +31,7 @@ export class ProductController {
 
   @Patch(':id')
   @ResponseMessage('Update product')
-  update(
-    @Param('id') id: string,
-    @Body() updateProductDto: UpdateProductDto,
-    @User() user: IUser
-  ) {
+  update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto, @User() user: IUser) {
     return this.productService.update(id, updateProductDto, user);
   }
 

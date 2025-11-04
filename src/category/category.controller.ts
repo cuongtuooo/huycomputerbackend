@@ -21,7 +21,7 @@ export class CategoryController {
   findAll(
     @Query('current') currentPage: string,
     @Query('pageSize') limit: string,
-    @Query() qs: any // nếu bạn cần truyền thêm filter
+    @Query() qs: any
   ) {
     return this.categoryService.findAll(+currentPage, +limit, qs);
   }
@@ -46,5 +46,13 @@ export class CategoryController {
   @ResponseMessage('Delete category')
   remove(@Param('id') id: string, @User() user: IUser) {
     return this.categoryService.remove(id, user);
+  }
+
+  // ✅ Thêm endpoint mới để lấy cây danh mục (nhiều cấp)
+  @Get('/tree/all')
+  @Public()
+  @ResponseMessage('Get category tree')
+  getTree() {
+    return this.categoryService.getTree();
   }
 }

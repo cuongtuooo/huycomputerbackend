@@ -20,6 +20,7 @@ export class Product {
     @Prop()
     desc: string;
 
+    // ✅ Tổng giá & tồn kho chỉ để tham khảo
     @Prop()
     price: number;
 
@@ -29,8 +30,30 @@ export class Product {
     @Prop()
     quantity: number;
 
-    @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Category' }) 
+    // ✅ Liên kết danh mục
+    @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Category' })
     category: mongoose.Schema.Types.ObjectId;
+
+    // ✅ Phiên bản có nhiều màu sắc
+    @Prop({
+        type: [
+            {
+                versionName: { type: String, required: true },
+                colors: [
+                    {
+                        color: { type: String, required: true },
+                        price: { type: Number, required: true },
+                        quantity: { type: Number, required: true },
+                    },
+                ],
+            },
+        ],
+        default: [],
+    })
+    variants: {
+        versionName: string;
+        colors: { color: string; price: number; quantity: number }[];
+    }[];
 
     @Prop({ type: Object })
     createdBy: {
@@ -50,14 +73,14 @@ export class Product {
         email: string;
     };
 
+    @Prop({ default: false })
+    isDeleted: boolean;
+
     @Prop()
     createdAt: Date;
 
     @Prop()
     updatedAt: Date;
-
-    @Prop()
-    isDeleted: Date;
 
     @Prop()
     deletedAt: Date;

@@ -1,33 +1,63 @@
-import { IsArray, IsMongoId, IsNotEmpty, IsOptional, IsString } from "class-validator";
+import {
+    IsArray,
+    IsMongoId,
+    IsNotEmpty,
+    IsOptional,
+    IsString,
+    ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+
+class ColorDto {
+    @IsNotEmpty()
+    @IsString()
+    color: string;
+
+    @IsNotEmpty()
+    price: number;
+
+    @IsNotEmpty()
+    quantity: number;
+}
+
+class VariantDto {
+    @IsNotEmpty()
+    @IsString()
+    versionName: string;
+
+    @ValidateNested({ each: true })
+    @Type(() => ColorDto)
+    @IsArray()
+    colors: ColorDto[];
+}
 
 export class CreateProductDto {
-    @IsNotEmpty({ message: "name không được để trống" })
+    @IsNotEmpty()
     name: string;
 
-    @IsNotEmpty({ message: "thumbnail không được để trống" })
+    @IsNotEmpty()
     thumbnail: string;
 
-    @IsNotEmpty({ message: "slider không được để trống" })
-    @IsArray({ message:"slider phải là mảng"})
-    slider: string;
+    @IsArray()
+    slider: string[];
 
-    @IsNotEmpty({ message: "mainText không được để trống" })
+    @IsNotEmpty()
     mainText: string;
 
-    @IsNotEmpty({ message: "desc không được để trống" })
+    @IsNotEmpty()
     desc: string;
 
-    @IsNotEmpty({ message: "price không được để trống" })
-    price: string;
+    @IsOptional()
+    price?: number;
 
     @IsOptional()
-    sold?: string;
+    quantity?: number;
 
-    @IsNotEmpty({ message: "quantity không được để trống" })
-    quantity: string;
-
-    @IsNotEmpty({ message: "quantity không được để trống" })
-    @IsMongoId({ each: true, message:"category là monggo object id"})
+    @IsMongoId()
     category: string;
-    
+
+    @ValidateNested({ each: true })
+    @Type(() => VariantDto)
+    @IsArray()
+    variants: VariantDto[];
 }

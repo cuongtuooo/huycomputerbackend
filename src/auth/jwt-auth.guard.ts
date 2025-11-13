@@ -1,4 +1,3 @@
-
 import {
     ExecutionContext,
     ForbiddenException,
@@ -21,39 +20,60 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             context.getHandler(),
             context.getClass(),
         ]);
-        if (isPublic) {
-            return true;
-        }
+        if (isPublic) return true;
         return super.canActivate(context);
-      }
+    }
 
     handleRequest(err, user, info, context: ExecutionContext) {
         const request: Request = context.switchToHttp().getRequest();
 
-        // You can throw an exception based on either "info" or "err" arguments
         if (err || !user) {
-            throw err || new UnauthorizedException("Token khong hợp lệ hoặc không có Bearer Token  ở Header hết hạn");
+            throw err || new UnauthorizedException(
+                'Token không hợp lệ hoặc không có Bearer Token',
+            );
         }
 
-        // check permissions
+        // ===== Chuẩn hoá method + path hiện tại =====
+        const targetMethod = request.method;
 
-        // const targetMethod = request.method;
-        // const targetEndPoint = request.route?.path as string;
+        // lấy path thực tế không có query
+        const rawPath =
+            (request.baseUrl || '') + (request.route?.path || '');
+        // /api/v1/permissions/:id khi khai báo controller sẽ là "/:id"
+        // nếu controller khai báo "/api/v1/permissions/:id" thì rawPath đã chuẩn
+        // thay id hex 24 ký tự thành :id để khớp mọi bản ghi
+        let targetPath = rawPath.replace(/\/[a-fA-F0-9]{24}$/, '/:id');
 
-        // const permissions = user?.permissions ?? []
-        
-        // let isExist = permissions.find(permissions=>
-        //     targetMethod === permissions.method 
-        //     &&
-        //     targetEndPoint === permissions.apiPath
-        // )
-        
-        // if (targetEndPoint.startsWith("/api/v1/auth")) isExist = true;
-        // if (!isExist) {
-        //     throw new ForbiddenException("Bạn không có quyền truy cập endpoint này")
-        // }
-        
+        // chấp nhận so khớp có/không có prefix /api/v1
+        const normalize = (p: string) =>
+            p.replace(/\?.*$/, '').replace(/^\/api\/v1/, '');
+
+        const normTarget = normalize(targetPath);
+
+        // ===== Lấy danh sách permission từ role =====
+        const role = user?.role;
+        const permissions: any[] =
+            role?.permissions && Array.isArray(role.permissions)
+                ? role.permissions
+                : [];
+
+        // Bypass cho ADMIN nếu bạn muốn
+        if (role?.name === 'ADMIN') return user;
+
+        // Bypass các endpoint auth nếu cần
+        if (normTarget.startsWith('/auth')) return user;
+
+        // ===== So khớp quyền =====
+        const ok = permissions.some((p) => {
+            const pMethod = p.method;
+            const pPath = normalize(p.apiPath || '');
+            return pMethod === targetMethod && pPath === normTarget;
+        });
+
+        if (!ok) {
+            throw new ForbiddenException('Bạn không có quyền truy cập endpoint này');
+        }
+
         return user;
     }
 }
-  

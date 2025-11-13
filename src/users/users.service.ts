@@ -10,6 +10,10 @@ import { IUser } from './users.interface';
 import aqp from 'api-query-params';
 import { Role, RoleDocument } from 'src/roles/schemas/role.schema';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { randomBytes } from 'crypto';
+import * as nodemailer from 'nodemailer';
+import dayjs from 'dayjs';
+
 
 
 @Injectable()
@@ -219,6 +223,69 @@ export class UsersService {
     return {
       message: 'Đổi mật khẩu thành công'
     };
+  }
+
+
+  /** 🟢 Gửi email quên mật khẩu */
+  async forgotPassword(email: string) {
+    const user = await this.userModel.findOne({ email });
+    if (!user) throw new BadRequestException('Không tìm thấy người dùng');
+
+    const token = randomBytes(20).toString('hex');
+    const expires = dayjs().add(15, 'minute').toDate();
+
+    await this.userModel.updateOne({ email }, {
+      resetPasswordToken: token,
+      resetPasswordExpires: expires,
+    });
+
+    // 📨 Gửi email
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASS,
+      },
+    });
+
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+
+    await transporter.sendMail({
+      from: `"Huy Computer" <${process.env.MAIL_USER}>`,
+      to: email,
+      subject: 'Khôi phục mật khẩu',
+      html: `
+      <p>Xin chào ${user.name},</p>
+      <p>Bạn vừa yêu cầu đặt lại mật khẩu.</p>
+      <p>Nhấn vào liên kết sau để tạo mật khẩu mới (hiệu lực 15 phút):</p>
+      <a href="${resetLink}">${resetLink}</a>
+    `,
+    });
+
+    return { message: 'Đã gửi email khôi phục mật khẩu' };
+  }
+
+  /** 🟠 Đặt lại mật khẩu bằng token */
+  async resetPassword(token: string, newPassword: string) {
+    const user = await this.userModel.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: new Date() },
+    });
+
+    if (!user) throw new BadRequestException('Token không hợp lệ hoặc đã hết hạn');
+
+    const hashed = this.getHashPassword(newPassword);
+
+    await this.userModel.updateOne(
+      { _id: user._id },
+      {
+        password: hashed,
+        resetPasswordToken: null,
+        resetPasswordExpires: null,
+      },
+    );
+
+    return { message: 'Đặt lại mật khẩu thành công' };
   }
 
 }

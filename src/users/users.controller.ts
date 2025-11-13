@@ -5,6 +5,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { Public, ResponseMessage, User } from 'src/decorator/customize';
 import { IUser } from './users.interface';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto, ResetPasswordDto } from './dto/forgot-password.dto';
 
 
 @Controller('users')
@@ -68,5 +69,19 @@ export class UsersController {
     @Body() changePasswordDto: ChangePasswordDto
   ) {
     return this.usersService.changePasswordByEmail(changePasswordDto);
+  }
+
+  @Post('forgot-password')
+  @Public()
+  @ResponseMessage('Yêu cầu khôi phục mật khẩu')
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    return this.usersService.forgotPassword(body.email);
+  }
+
+  @Post('reset-password')
+  @Public()
+  @ResponseMessage('Đặt lại mật khẩu')
+  async resetPassword(@Body() body: ResetPasswordDto) {
+    return this.usersService.resetPassword(body.token, body.newPassword);
   }
 }

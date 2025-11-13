@@ -26,6 +26,14 @@ export class CategoryController {
     return this.categoryService.findAll(+currentPage, +limit, qs);
   }
 
+  // ✅ Thêm endpoint mới để lấy cây danh mục (nhiều cấp)
+  @Get('/tree/all')
+  @Public()
+  @ResponseMessage('Get category tree')
+  getTree() {
+    return this.categoryService.getTree();
+  }
+
   @Get(':id')
   @ResponseMessage('Get category detail')
   findOne(@Param('id') id: string) {
@@ -48,11 +56,5 @@ export class CategoryController {
     return this.categoryService.remove(id, user);
   }
 
-  // ✅ Thêm endpoint mới để lấy cây danh mục (nhiều cấp)
-  @Get('/tree/all')
-  @Public()
-  @ResponseMessage('Get category tree')
-  getTree() {
-    return this.categoryService.getTree();
-  }
+  
 }

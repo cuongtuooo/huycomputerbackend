@@ -15,17 +15,7 @@ export class DashboardService {
     @InjectModel(Category.name) private categoryModel: Model<CategoryDocument>,
   ) { }
 
-  /**
-   * 📊 Tạo thống kê Dashboard tổng quan:
-   *  - Tổng sản phẩm
-   *  - Tổng đơn hàng
-   *  - Tổng doanh thu
-   *  - Tổng danh mục
-   *  - Thống kê danh mục sản phẩm
-   *  - Đơn hàng gần đây
-   *  - Sản phẩm sắp hết hàng
-   *  - Sản phẩm bán chạy nhất
-   */
+  /** 📊 Tạo thống kê tổng quan Dashboard */
   async createDailyStats() {
     // 1️⃣ Tổng sản phẩm
     const totalProducts = await this.productModel.countDocuments({
@@ -38,7 +28,9 @@ export class DashboardService {
     });
 
     // 3️⃣ Tổng doanh thu
-    const orders = await this.orderModel.find({ isDeleted: { $ne: true } }).select('totalPrice');
+    const orders = await this.orderModel
+      .find({ isDeleted: { $ne: true } })
+      .select('totalPrice');
     const totalRevenue = orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
 
     // 4️⃣ Tổng danh mục
@@ -46,34 +38,80 @@ export class DashboardService {
       $or: [{ isDeleted: false }, { isDeleted: null }],
     });
 
-    // 5️⃣ Thống kê từng danh mục + số sản phẩm trong danh mục
-    const categoriesStats = await this.productModel.aggregate([
-      { $match: { $or: [{ isDeleted: false }, { isDeleted: null }] } },
-      {
-        $group: {
-          _id: '$category',
-          productCount: { $sum: 1 },
-        },
-      },
-      {
-        $lookup: {
-          from: 'categories', // tên collection
-          localField: '_id',
-          foreignField: '_id',
-          as: 'categoryInfo',
-        },
-      },
-      { $unwind: '$categoryInfo' },
-      {
-        $project: {
-          _id: 0,
-          categoryId: '$categoryInfo._id',
-          categoryName: '$categoryInfo.name',
-          productCount: 1,
-        },
-      },
-      { $sort: { productCount: -1 } },
-    ]);
+    // 5️⃣ Lấy toàn bộ danh mục + số lượng sản phẩm (cha - con)
+    const allCategories = await this.categoryModel
+      .find({ $or: [{ isDeleted: false }, { isDeleted: null }] })
+      .populate('parentCategory', 'name')
+      .lean();
+
+    const allProducts = await this.productModel
+      .find({ $or: [{ isDeleted: false }, { isDeleted: null }] })
+      .select('category')
+      .lean();
+
+    // 🧮 Đếm sản phẩm theo danh mục
+    const productCountMap = new Map<string, number>();
+    for (const p of allProducts) {
+      const catId = p.category?.toString();
+      if (catId) {
+        productCountMap.set(catId, (productCountMap.get(catId) || 0) + 1);
+      }
+    }
+
+    // 🧩 Tạo map danh mục và gắn productCount
+    const map = new Map<string, any>();
+    const roots: any[] = [];
+
+    for (const cat of allCategories) {
+      const catId = cat._id.toString();
+      map.set(catId, {
+        _id: cat._id,
+        name: cat.name,
+        productCount: productCountMap.get(catId) || 0,
+        parentCategory: cat.parentCategory ?? null,
+        children: [],
+      });
+    }
+
+    // 🧱 Liên kết cha - con (fix lỗi FlattenMaps<ObjectId>)
+    for (const cat of map.values()) {
+      let parentId: string | null = null;
+
+      if (cat.parentCategory) {
+        if (
+          typeof cat.parentCategory === 'object' &&
+          cat.parentCategory._id
+        ) {
+          parentId = cat.parentCategory._id.toString();
+        } else if (typeof cat.parentCategory === 'string') {
+          parentId = cat.parentCategory;
+        } else if (cat.parentCategory instanceof Object) {
+          parentId = cat.parentCategory.toString();
+        }
+      }
+
+      if (parentId && map.has(parentId)) {
+        map.get(parentId).children.push(cat);
+      } else if (!parentId) {
+        roots.push(cat);
+      }
+    }
+
+    // 🔁 Cộng tổng sản phẩm (cha = sản phẩm trực tiếp + của con)
+    function sumProducts(node: any): number {
+      let total = node.productCount || 0;
+      if (node.children?.length) {
+        for (const child of node.children) {
+          total += sumProducts(child);
+        }
+      }
+      node.totalProducts = total;
+      return total;
+    }
+
+    for (const r of roots) {
+      sumProducts(r);
+    }
 
     // 6️⃣ Đơn hàng gần đây
     const recentOrders = await this.orderModel
@@ -96,10 +134,8 @@ export class DashboardService {
 
     // 8️⃣ Sản phẩm bán chạy nhất
     const topSellingProducts = await this.productModel
-      .find({
-        $or: [{ isDeleted: false }, { isDeleted: null }],
-      })
-      .sort({ sold: -1 }) // sắp xếp theo số lượng bán giảm dần
+      .find({ $or: [{ isDeleted: false }, { isDeleted: null }] })
+      .sort({ sold: -1 })
       .limit(5)
       .select('name price sold quantity category')
       .populate('category', 'name')
@@ -120,17 +156,14 @@ export class DashboardService {
       totalOrders,
       totalRevenue,
       totalCategories,
-      categoriesStats,
+      categoriesStats: roots, // ✅ Danh mục cha - con
       recentOrders,
       lowStockProducts,
       topSellingProducts,
     };
   }
 
-  /**
-   * GET /dashboard
-   * Mỗi lần gọi sẽ tự động tạo thống kê mới nhất
-   */
+  /** Mỗi lần gọi /dashboard sẽ tự động cập nhật dữ liệu mới */
   async findAll(query?: { lowStock?: string; limit?: string }) {
     return this.createDailyStats();
   }

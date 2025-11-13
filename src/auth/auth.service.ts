@@ -49,7 +49,8 @@ export class AuthService {
             _id,
             name,
             email,
-            role
+            role,
+            permissions // 🟢 thêm dòng này
         };
 
         const refresh_token = this.createRefreshToken(payload)

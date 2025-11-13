@@ -58,7 +58,11 @@ export class User {
     @Prop()
     deletedAt: Date;
 
-    
+    @Prop()
+    resetPasswordToken: string;
+
+    @Prop()
+    resetPasswordExpires: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

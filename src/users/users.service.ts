@@ -45,32 +45,32 @@ export class UsersService {
   //   return user;
   // }
 
-  async create(createUserDto: CreateUserDto, user:IUser) {
-    const { email,  name, password, phone} = createUserDto
+  async create(createUserDto: CreateUserDto, user: IUser) {
+    const { email, name, password, phone, role } = createUserDto;
 
-    // logic checkmail
     const isExist = await this.userModel.findOne({ email });
-
-    if (isExist) {
-      throw new BadRequestException(`email:${email} đã tồn tại`)
-    }
+    if (isExist) throw new BadRequestException(`email:${email} đã tồn tại`);
 
     const hassPassword = this.getHashPassword(password);
-    const NORMAL_USER_ROLE_ID = "6883003aac8a30a7ede53073";
-    let newUser = await this.userModel.create({
+
+    // Kiểm tra role có tồn tại
+    const checkRole = await this.roleModel.findById(role);
+    if (!checkRole) throw new BadRequestException("Role không tồn tại");
+
+    const newUser = await this.userModel.create({
       name,
       email,
       password: hassPassword,
       phone,
-      role: new mongoose.Types.ObjectId(NORMAL_USER_ROLE_ID),
+      role: new mongoose.Types.ObjectId(role),
       createdBy: {
         _id: user._id,
         email: user.email
       }
-    })
+    });
+
     return newUser;
-    
-  };
+  }
 
 
   async register(user: RegisterUserDto) {
@@ -115,12 +115,14 @@ export class UsersService {
     const totalPages = Math.ceil(totalItems / defaultLimit);
 
     const result = await this.userModel.find(filter)
-    .skip(offset)
-    .limit(defaultLimit)
-    .sort(sort as any)
+      .skip(offset)
+      .limit(defaultLimit)
+      .sort(sort as any)
       .select('-password')
-    .populate(population)
-    .exec();
+      .populate({ path: 'role', select: '_id name' })   // ⬅ THÊM DÒNG NÀY
+      .populate(population)
+      .exec();
+
 
     return {
       meta: {
@@ -140,7 +142,7 @@ export class UsersService {
     return this.userModel.findOne({
       _id:id
     }).select("-password") //exclude >< include tức là không muốn lấy password
-      .populate({ path: "role", select: {name:1, _id:1, } })
+      .populate({ path: "role", select: "_id name" });
    }
 
   findOneByUserName(username: string) {
@@ -154,17 +156,19 @@ export class UsersService {
   }
 
   async update(updateUserDto: UpdateUserDto, user: IUser) {
-      const updated= await this.userModel.updateOne(
-      { _id: updateUserDto._id }, 
+    const updated = await this.userModel.updateOne(
+      { _id: updateUserDto._id },
       {
         ...updateUserDto,
         updatedBy: {
           _id: user._id,
-          email: user.email 
+          email: user.email
         }
-      })
+      }
+    );
     return updated;
   }
+
 
   async remove(id: string, user: IUser) {
     if (!mongoose.Types.ObjectId.isValid(id))

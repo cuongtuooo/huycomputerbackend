@@ -44,28 +44,33 @@ export class RolesService {
     delete filter.current;
     delete filter.pageSize;
 
-    let offset = (+currentPage - 1) * (+limit);
-    let defaultLimit = +limit ? +limit : 10;
+    const offset = (+currentPage - 1) * (+limit);
+    const defaultLimit = +limit || 10;
 
-    const totalItems = (await this.roleModel.find(filter)).length;
+    const totalItems = await this.roleModel.countDocuments(filter);
     const totalPages = Math.ceil(totalItems / defaultLimit);
 
     const result = await this.roleModel.find(filter)
       .skip(offset)
       .limit(defaultLimit)
       .sort(sort as any)
-      .populate(population)
+      .populate({
+        path: "permissions",
+        select: "_id name apiPath method module",
+      }) // 🎯 THÊM DÒNG NÀY
       .exec();
+
     return {
       meta: {
-        current: currentPage, //trang hiện tại
-        pageSize: limit, //số lượng bản ghi đã lấy
-        pages: totalPages,  //tổng số trang với điều kiện query
-        total: totalItems // tổng số phần tử (số bản ghi)
+        current: currentPage,
+        pageSize: limit,
+        pages: totalPages,
+        total: totalItems,
       },
-      result //kết quả query
-    }
+      result,
+    };
   }
+
 
   async findOne(id: string) {
     if (!mongoose.Types.ObjectId.isValid(id)) {

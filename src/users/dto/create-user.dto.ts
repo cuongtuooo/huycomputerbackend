@@ -31,6 +31,9 @@ export class CreateUserDto {
     // })
     // @IsMongoId({ message:"role có định dạng là mongoid"})
     // role: mongoose.Schema.Types.ObjectId;   
+    @IsNotEmpty({ message: "role không được để trống" })
+    @IsMongoId({ message: "role phải là mongoId" })
+    role: string;
 }
 
 export class RegisterUserDto {
@@ -53,4 +56,5 @@ export class RegisterUserDto {
     })
     name: string;
 
+    
 }

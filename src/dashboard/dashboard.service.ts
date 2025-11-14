@@ -27,11 +27,24 @@ export class DashboardService {
       $or: [{ isDeleted: false }, { isDeleted: null }],
     });
 
-    // 3️⃣ Tổng doanh thu
-    const orders = await this.orderModel
-      .find({ isDeleted: { $ne: true } })
-      .select('totalPrice');
-    const totalRevenue = orders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+    // 3️⃣ Tổng doanh thu — CHỈ tính đơn hoàn tất
+    const revenueOrders = await this.orderModel.aggregate([
+      {
+        $match: {
+          isDeleted: { $ne: true },
+          status: { $in: ["DELIVERED", "RECEIVED"] }  // chỉ tính đơn đã giao & đã nhận
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$totalPrice" }
+        }
+      }
+    ]);
+
+    const totalRevenue = revenueOrders?.[0]?.total || 0;
+
 
     // 4️⃣ Tổng danh mục
     const totalCategories = await this.categoryModel.countDocuments({

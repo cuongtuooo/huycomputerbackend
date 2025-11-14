@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -15,13 +16,14 @@ import { HistoryModule } from './history/history.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ProductModule } from './products/products.module';
 
+import { RolesGuard } from './guards/roles.guard';   // ⭐ THÊM VÀO
+// Nếu bạn có AuthGuard global thì import vào đây luôn
+
 @Module({
   imports: [
-    ConfigModule.forRoot(
-      {
-        isGlobal: true,
-      }
-    ),
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -30,10 +32,10 @@ import { ProductModule } from './products/products.module';
           connection.plugin(softDeletePlugin);
           return connection;
         }
-
       }),
       inject: [ConfigService]
     }),
+
     UsersModule,
     AuthModule,
     FilesModule,
@@ -46,6 +48,14 @@ import { ProductModule } from './products/products.module';
     DashboardModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+
+    // ⭐ BẬT ROLES GUARD TOÀN CỤC CHO TOÀN HỆ THỐNG
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
+  ],
 })
-export class AppModule {}
+export class AppModule { }

@@ -1,10 +1,10 @@
 import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Order, OrderDocument } from './schemas/order.schema';
 import { SoftDeleteModel } from 'soft-delete-plugin-mongoose';
+import { Order, OrderDocument } from './schemas/order.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
-import mongoose, { isValidObjectId, Types, SortOrder, PopulateOptions } from 'mongoose';
 import { IUser } from 'src/users/users.interface';
+import mongoose, { Types } from 'mongoose';
 import aqp from 'api-query-params';
 
 @Injectable()
@@ -14,154 +14,206 @@ export class OrderService {
     private orderModel: SoftDeleteModel<OrderDocument>
   ) { }
 
+  /** ================================
+   *  🟢 USER CREATE ORDER
+   *  ================================= */
   async create(createOrderDto: CreateOrderDto, user: IUser) {
     const newOrder = await this.orderModel.create({
       ...createOrderDto,
-      status: 'PENDING', // có/không tuỳ bạn, khuyên có
+      status: 'PENDING',
       createdBy: {
-        _id: new Types.ObjectId(user._id),   // 👈 ép về ObjectId
+        _id: new Types.ObjectId(user._id),
         email: user.email,
       },
     });
 
-    return { id: newOrder._id, createdAt: newOrder.createdAt };
-  }
-
-  async findAll(currentPage: number, limit: number, qs: any) {
-    const { filter, sort, projection, population } = aqp(qs);
-    delete filter.current;
-    delete filter.pageSize;
-
-    const offset = (currentPage - 1) * limit;
-    const totalItems = await this.orderModel.countDocuments(filter);
-    const totalPages = Math.ceil(totalItems / limit);
-
-    const result = await this.orderModel
-      .find(filter, projection)
-      .skip(offset)
-      .limit(limit)
-      .sort(sort as any)
-      .populate('detail._id')
-      .exec();
-
     return {
-      meta: {
-        current: currentPage,
-        pageSize: limit,
-        pages: totalPages,
-        total: totalItems,
-      },
-      result,
+      id: newOrder._id,
+      createdAt: newOrder.createdAt,
     };
   }
 
-  async findOne(id: string) {
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      throw new BadRequestException(`Invalid order id: ${id}`);
-    }
+  /** ================================
+   *  🟡 GET ALL ORDERS
+   *  ADMIN → xem tất cả
+   *  USER  → chỉ xem của mình
+   *  ================================= */
+  // 🔥 API CLIENT chỉ lấy order của user đăng nhập
+  async findAll(current: number, pageSize: number, qs: any, user: IUser) {
+    const parsed = aqp(qs);
+    const { filter, sort, projection } = parsed;
 
-    return this.orderModel.findById(id).populate('detail._id');
+    delete filter.current;
+    delete filter.pageSize;
+
+    // 🚨 Luôn chỉ lấy đơn của chính mình → không check role nữa
+    filter['createdBy._id'] = new Types.ObjectId(user._id);
+
+    const offset = (current - 1) * pageSize;
+
+    const totalItems = await this.orderModel.countDocuments(filter);
+    const result = await this.orderModel
+      .find(filter, projection)
+      .skip(offset)
+      .limit(pageSize)
+      .sort(sort as any)
+      .populate('detail._id')
+      .lean();
+
+    return {
+      meta: {
+        current,
+        pageSize,
+        total: totalItems,
+        pages: Math.ceil(totalItems / pageSize),
+      },
+      result
+    };
   }
 
-  private async mustOwnOrder(id: string, user: any) {
-    if (!isValidObjectId(id)) throw new BadRequestException('Invalid order id');
-    const doc = await this.orderModel.findById(id);
-    if (!doc) throw new BadRequestException('Order not found');
-    if (String(doc?.createdBy?._id) !== String(user?._id)) {
-      throw new ForbiddenException('Not your order');
+
+  /** ================================
+   *  🔵 GET ONE ORDER (with permission)
+   *  ADMIN → xem tất cả
+   *  USER → chỉ xem đơn của mình
+   *  ================================= */
+  async findOne(id: string, user: IUser) {
+    const order = await this.orderModel
+      .findById(id)
+      .populate('detail._id')
+      .lean();
+
+    if (!order) throw new BadRequestException('Order not found');
+
+    // 🚨 Luôn chỉ xem đơn của mình
+    if (String(order.createdBy._id) !== String(user._id)) {
+      throw new ForbiddenException('Bạn không có quyền xem đơn này');
     }
-    return doc;
+
+    return order;
   }
 
-  async cancelMyOrder(id: string, user: any) {
-    const order = await this.mustOwnOrder(id, user);
+
+  /** ================================
+   *  🔴 Cancel order (user only)
+   *  ================================= */
+  async cancelMyOrder(id: string, user: IUser) {
+    const order = await this.findOne(id, user); // auto check quyền
+
     if (['SHIPPING', 'DELIVERED', 'RECEIVED'].includes(order.status)) {
-      throw new BadRequestException('Order cannot be canceled at this stage');
+      throw new BadRequestException('Đơn hàng đã xử lý, không thể hủy');
     }
-    order.status = 'CANCELED';
-    order.updatedBy = { _id: new Types.ObjectId(user._id), email: user.email };
-    await order.save();
-    return order;
+
+    return this.orderModel.updateOne(
+      { _id: id },
+      {
+        status: 'CANCELED',
+        updatedBy: { _id: user._id, email: user.email },
+      },
+    );
   }
 
-  // Admin cập nhật sang SHIPPING/DELIVERED (dùng endpoint updateStatus hiện có hoặc thêm method riêng)
-  async adminUpdateStatus(id: string, status: 'SHIPPING' | 'DELIVERED', admin: any) {
-    if (!isValidObjectId(id)) throw new BadRequestException('Invalid order id');
-    const order = await this.orderModel.findById(id);
-    if (!order) throw new BadRequestException('Order not found');
+  /** ================================
+   *  🟢 Admin update shipping/delivery
+   *  ================================= */
+  async adminUpdateStatus(id: string, status: 'SHIPPING' | 'DELIVERED', user: IUser) {
+    if (user.role?.name !== 'ADMIN')
+      throw new ForbiddenException('Chỉ admin được cập nhật đơn');
 
-    order.status = status;
-    order.updatedBy = { _id: new Types.ObjectId(admin._id), email: admin.email };
-    await order.save();
-    return order;
+    return this.orderModel.updateOne(
+      { _id: id },
+      {
+        status,
+        updatedBy: { _id: user._id, email: user.email },
+      },
+    );
   }
 
-  // Khách xác nhận đã nhận
-  async confirmReceived(id: string, user: any) {
-    const order = await this.mustOwnOrder(id, user);
-    if (order.status !== 'DELIVERED') {
-      throw new BadRequestException('Order is not delivered yet');
-    }
-    order.status = 'RECEIVED';
-    order.updatedBy = { _id: new Types.ObjectId(user._id), email: user.email };
-    await order.save();
+  /** ================================
+   *  🔵 Client confirm received
+   *  ================================= */
+  async confirmReceived(id: string, user: IUser) {
+    const order = await this.findOne(id, user);
 
-    // Ghi vào lịch sử mua hàng tại đây (nếu bạn đã có HistoryService)
-    // await this.historyService.createFromOrder(order, user);
+    if (order.status !== 'DELIVERED')
+      throw new BadRequestException('Đơn chưa giao, không thể xác nhận');
 
-    return order;
+    return this.orderModel.updateOne(
+      { _id: id },
+      {
+        status: 'RECEIVED',
+        updatedBy: { _id: user._id, email: user.email },
+      },
+    );
   }
 
-  // Khách yêu cầu hoàn hàng
-  async requestReturn(id: string, user: any) {
-    const order = await this.mustOwnOrder(id, user);
-    if (order.status !== 'DELIVERED') {
-      throw new BadRequestException('Chỉ có thể hoàn hàng sau khi đơn đã giao.');
-    }
-    order.status = 'RETURNED';
-    order.updatedBy = { _id: new Types.ObjectId(user._id), email: user.email };
-    await order.save();
-    return order;
+  // 📌 Admin xem tất cả
+  async adminFindAll(current: number, pageSize: number, qs: any) {
+    const parsed = aqp(qs);
+    const { filter, sort, projection } = parsed;
+
+    delete filter.current;
+    delete filter.pageSize;
+
+    const offset = (current - 1) * pageSize;
+
+    const totalItems = await this.orderModel.countDocuments(filter);
+    const result = await this.orderModel
+      .find(filter, projection)
+      .skip(offset)
+      .limit(pageSize)
+      .sort(sort as any)
+      .populate('detail._id')
+      .lean();
+
+    return {
+      meta: {
+        current,
+        pageSize,
+        total: totalItems,
+        pages: Math.ceil(totalItems / pageSize),
+      },
+      result
+    };
   }
 
-  // Admin xác nhận đã nhận hàng hoàn
-  async adminConfirmReturnReceived(id: string, admin: any) {
-    if (!isValidObjectId(id)) throw new BadRequestException('Invalid order id');
-    const order = await this.orderModel.findById(id);
-    if (!order) throw new BadRequestException('Order not found');
-    if (order.status !== 'RETURNED') {
-      throw new BadRequestException('Chỉ có thể xác nhận khi đơn ở trạng thái hoàn hàng');
-    }
-    order.status = 'RETURN_RECEIVED';
-    order.updatedBy = { _id: new Types.ObjectId(admin._id), email: admin.email };
-    await order.save();
-    return order;
+  // 📌 Admin xem 1 đơn bất kỳ
+  async adminFindOne(id: string) {
+    return await this.orderModel
+      .findById(id)
+      .populate('detail._id')
+      .lean();
   }
 
-  // 🟡 Admin CHẤP NHẬN yêu cầu hoàn hàng
-  async adminApproveReturn(id: string, admin: any) {
-    const order = await this.orderModel.findById(id);
-    if (!order) throw new BadRequestException('Order not found');
-    if (order.status !== 'RETURN_REQUESTED') {
-      throw new BadRequestException('Chỉ chấp nhận khi đơn ở trạng thái yêu cầu hoàn hàng');
+  async requestReturn(id: string, user: IUser) {
+    const order = await this.findOne(id, user);
+
+    if (!order) throw new BadRequestException('Không tìm thấy đơn');
+
+    if (order.status !== 'DELIVERED' && order.status !== 'RECEIVED') {
+      throw new BadRequestException('Chỉ hoàn hàng khi đơn đã giao');
     }
-    order.status = 'RETURNED';
-    order.updatedBy = { _id: new Types.ObjectId(admin._id), email: admin.email };
-    await order.save();
-    return order;
+
+    return this.orderModel.updateOne(
+      { _id: id },
+      {
+        status: 'RETURN_REQUESTED',
+        updatedBy: { _id: user._id, email: user.email }
+      }
+    );
   }
 
-  // 🔴 Admin TỪ CHỐI yêu cầu hoàn hàng
-  async adminRejectReturn(id: string, admin: any) {
-    const order = await this.orderModel.findById(id);
-    if (!order) throw new BadRequestException('Order not found');
-    if (order.status !== 'RETURN_REQUESTED') {
-      throw new BadRequestException('Chỉ từ chối khi đơn ở trạng thái yêu cầu hoàn hàng');
-    }
-    order.status = 'RETURN_REJECTED';
-    order.updatedBy = { _id: new Types.ObjectId(admin._id), email: admin.email };
-    await order.save();
-    return order;
+  async adminReturnReceived(id: string, admin: IUser) {
+    if (admin.role?.name !== 'ADMIN')
+      throw new ForbiddenException('Chỉ admin được xác nhận hoàn');
+
+    return this.orderModel.updateOne(
+      { _id: id },
+      {
+        status: 'RETURN_RECEIVED',
+        updatedBy: { _id: admin._id, email: admin.email }
+      }
+    );
   }
 
 }
